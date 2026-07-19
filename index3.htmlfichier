@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HECM Natitingou — Emplois du temps</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Work+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<!-- ============================================================
+  CONFIGURATION FIREBASE
+  Remplace les valeurs ci-dessous par celles de TON projet Firebase
+  (Console Firebase → Paramètres du projet → Tes applications → SDK)
+============================================================= -->
+<script>
+  window.FIREBASE_CONFIG = {
+    apiKey: "AIzaSyAaxWQN1_dQCYtWFfceWrOq03r44dLgMhQ",
+    authDomain: "emploi-du-temps-hecm-nati.firebaseapp.com",
+    projectId: "emploi-du-temps-hecm-nati",
+    storageBucket: "emploi-du-temps-hecm-nati.firebasestorage.app",
+    messagingSenderId: "59643526290",
+    appId: "1:59643526290:web:3a6826030fc2e328b63a4b"
+  };
+  // Mot de passe de l'espace Direction des Études — change-le avant publication
+  window.ADMIN_PASSWORD = "HECM 2026";
+</script>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+<style>
+  :root{
+    --ink:#161F33;
+    --paper:#EEEDE6;
+    --paper-2:#E4E2D8;
+    --line:#CFCCBE;
+    --gold:#A9782E;
+    --gold-ink:#7A5620;
+    --amber:#B4652E;
+    --amber-soft:#F1DFCB;
+    --teal:#296B62;
+    --teal-soft:#D9E7E3;
+    --white:#FBFAF6;
+    --red-ink:#8E2E24;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:'Work Sans',sans-serif;line-height:1.5;}
+  a{color:inherit;}
+  .serif{font-family:'Fraunces',serif;}
+  .mono{font-family:'IBM Plex Mono',monospace;}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 22px;}
+  button{font-family:inherit;cursor:pointer;}
+
+  /* ---------- LETTERHEAD ---------- */
+  .letterhead{
+    background:var(--white);
+    border-bottom:3px solid var(--ink);
+    padding:22px 0 16px;
+  }
+  .letterhead-row{display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:10px;}
+  .seal{display:flex;align-items:center;gap:12px;}
+  .seal-mark{
+    width:46px;height:46px;border:2px solid var(--ink);border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    font-family:'Fraunces',serif;font-weight:700;font-size:15px;color:var(--ink);
+    flex-shrink:0;
+  }
+  .school-name{font-family:'Fraunces',serif;font-weight:600;font-size:24px;letter-spacing:0.2px;}
+  .school-sub{font-family:'Work Sans',sans-serif;font-size:11px;letter-spacing:2.5px;color:var(--gold-ink);text-transform:uppercase;margin-top:2px;}
+  .letterhead-tag{font-family:'IBM Plex Mono',monospace;font-size:12px;color:#6b6455;}
+  .gold-rule{height:1px;background:linear-gradient(90deg, var(--gold), transparent 85%);margin-top:14px;}
+
+  /* ---------- BREADCRUMB ---------- */
+  .crumbline{
+    display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+    font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:#6b6455;
+    padding:16px 0 0;
+  }
+  .crumbline .step{padding:4px 0;}
+  .crumbline .step.active{color:var(--ink);font-weight:600;}
+  .crumbline .sep{color:var(--line);}
+  .crumbline button.linklike{
+    background:none;border:none;font-family:inherit;font-size:inherit;color:var(--gold-ink);
+    text-decoration:underline;padding:0;
+  }
+
+  main{min-height:60vh;padding:26px 0 90px;}
+
+  /* ---------- HOME: SECTOR CARDS ---------- */
+  .intro-title{font-family:'Fraunces',serif;font-weight:600;font-size:clamp(24px,4vw,34px);margin:6px 0 6px;}
+  .intro-lede{color:#5c5648;max-width:560px;margin-bottom:32px;}
+
+  .sector-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
+  @media(max-width:700px){.sector-grid{grid-template-columns:1fr;}}
+  .sector-card{
+    background:var(--white);border:1px solid var(--line);border-radius:2px;
+    padding:28px 26px;text-align:left;position:relative;overflow:hidden;
+    transition:transform .15s ease, box-shadow .15s ease;
+  }
+  .sector-card:hover{transform:translateY(-3px);box-shadow:0 14px 30px rgba(22,31,51,0.10);}
+  .sector-card::before{content:"";position:absolute;top:0;left:0;bottom:0;width:5px;}
+  .sector-card.tertiaire::before{background:var(--amber);}
+  .sector-card.industrielle::before{background:var(--teal);}
+  .sector-tag{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:10px;display:block;}
+  .sector-card.tertiaire .sector-tag{color:var(--amber);}
+  .sector-card.industrielle .sector-tag{color:var(--teal);}
+  .sector-card h3{font-family:'Fraunces',serif;font-size:22px;font-weight:600;margin:0 0 10px;}
+  .sector-card p{color:#5c5648;font-size:14px;margin:0 0 14px;}
+  .sector-filieres{display:flex;gap:6px;flex-wrap:wrap;}
+  .sector-filieres span{
+    font-family:'IBM Plex Mono',monospace;font-size:11px;border:1px solid var(--line);
+    padding:3px 8px;border-radius:12px;color:#4a4536;
+  }
+
+  /* ---------- FILIERE CHIPS ---------- */
+  .chip-row{display:flex;gap:10px;flex-wrap:wrap;}
+  .chip-btn{
+    background:var(--white);border:1px solid var(--line);border-radius:2px;
+    padding:14px 20px;font-family:'Fraunces',serif;font-size:17px;font-weight:600;
+    color:var(--ink);transition:border-color .15s, background .15s;
+  }
+  .chip-btn:hover{border-color:var(--gold);background:var(--amber-soft);}
+
+  /* ---------- YEAR TABS ---------- */
+  .year-row{display:flex;gap:10px;flex-wrap:wrap;}
+  .year-btn{
+    background:var(--white);border:1px solid var(--line);border-radius:2px;
+    padding:12px 22px;font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--ink);
+  }
+  .year-btn:hover{border-color:var(--gold);}
+
+  .section-label{font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:1.5px;color:var(--gold-ink);text-transform:uppercase;margin-bottom:14px;}
+
+  /* ---------- SCHEDULE ---------- */
+  .stamp{
+    display:inline-flex;align-items:center;gap:8px;
+    border:1.5px solid var(--red-ink);color:var(--red-ink);
+    font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:1px;text-transform:uppercase;
+    padding:6px 12px;border-radius:2px;transform:rotate(-1deg);margin-bottom:22px;
+  }
+  .board-title{font-family:'Fraunces',serif;font-size:26px;font-weight:600;margin-bottom:4px;}
+  .board-sub{color:#5c5648;font-size:14px;margin-bottom:22px;}
+
+  .board{
+    display:grid;grid-template-columns:repeat(6,1fr);gap:14px;
+  }
+  @media(max-width:900px){.board{grid-template-columns:repeat(3,1fr);}}
+  @media(max-width:560px){.board{grid-template-columns:1fr;}}
+  .day-card{background:var(--white);border:1px solid var(--line);border-radius:2px;min-height:120px;}
+  .day-head{
+    font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:1.5px;text-transform:uppercase;
+    padding:10px 12px;border-bottom:1px solid var(--line);color:var(--ink);background:var(--paper-2);
+  }
+  .day-body{padding:10px 10px 14px;display:flex;flex-direction:column;gap:8px;}
+  .cours-block{
+    border-left:3px solid var(--gold);background:var(--paper);padding:8px 10px;border-radius:0 2px 2px 0;
+  }
+  .cours-heure{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--gold-ink);}
+  .cours-nom{font-family:'Work Sans',sans-serif;font-weight:600;font-size:13.5px;margin:2px 0;}
+  .cours-info{font-size:12px;color:#6b6455;}
+  .day-empty{color:#9a927e;font-size:12px;font-style:italic;padding:6px 2px;}
+
+  .empty-state{
+    background:var(--white);border:1px dashed var(--line);border-radius:2px;
+    padding:40px 24px;text-align:center;color:#6b6455;
+  }
+  .empty-state strong{display:block;color:var(--ink);font-family:'Fraunces',serif;font-size:18px;margin-bottom:8px;}
+
+  /* ---------- ADMIN FAB ---------- */
+  .admin-fab{
+    position:fixed;bottom:20px;right:20px;z-index:50;
+    background:var(--ink);color:var(--white);border:none;border-radius:2px;
+    padding:12px 18px;font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:0.5px;
+    box-shadow:0 8px 22px rgba(22,31,51,0.28);
+  }
+  .admin-fab:hover{background:#232f4d;}
+
+  /* ---------- MODAL ---------- */
+  .overlay{
+    position:fixed;inset:0;background:rgba(22,31,51,0.55);z-index:100;
+    display:flex;align-items:center;justify-content:center;padding:20px;
+  }
+  .modal{
+    background:var(--white);border-radius:3px;max-width:640px;width:100%;
+    max-height:88vh;overflow-y:auto;padding:28px 26px;position:relative;
+  }
+  .modal-close{
+    position:absolute;top:16px;right:18px;background:none;border:none;font-size:20px;color:#6b6455;
+  }
+  .modal h2{font-family:'Fraunces',serif;font-size:22px;margin:0 0 6px;}
+  .modal p.hint{color:#6b6455;font-size:13px;margin-bottom:18px;}
+  .field{margin-bottom:14px;}
+  .field label{display:block;font-family:'IBM Plex Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--gold-ink);margin-bottom:6px;}
+  .field input, .field select{
+    width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:2px;
+    font-family:'Work Sans',sans-serif;font-size:14px;background:var(--paper);color:var(--ink);
+  }
+  .field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .btn{
+    border:none;border-radius:2px;padding:12px 20px;font-family:'IBM Plex Mono',monospace;
+    font-size:12.5px;letter-spacing:0.5px;
+  }
+  .btn-primary{background:var(--gold);color:var(--white);}
+  .btn-primary:hover{background:var(--gold-ink);}
+  .btn-danger{background:var(--red-ink);color:var(--white);}
+  .btn-ghost{background:none;border:1px solid var(--line);color:var(--ink);}
+  .err-msg{color:var(--red-ink);font-family:'IBM Plex Mono',monospace;font-size:12px;margin-top:8px;}
+
+  .admin-list{margin-top:20px;display:flex;flex-direction:column;gap:8px;}
+  .admin-row{
+    display:grid;grid-template-columns:70px 1fr 1fr auto;gap:8px;align-items:center;
+    border:1px solid var(--line);border-radius:2px;padding:8px 10px;font-size:13px;
+  }
+  @media(max-width:520px){.admin-row{grid-template-columns:1fr;}}
+  .admin-row .del{background:none;border:none;color:var(--red-ink);font-size:16px;}
+
+  footer{border-top:1px solid var(--line);padding:22px 0;text-align:center;color:#8a8370;font-family:'IBM Plex Mono',monospace;font-size:11.5px;}
+</style>
+</head>
+<body>
+
+<header class="letterhead">
+  <div class="wrap">
+    <div class="letterhead-row">
+      <div class="seal">
+        <div class="seal-mark">H</div>
+        <div>
+          <div class="school-name">HECM</div>
+          <div class="school-sub">Natitingou · Bénin</div>
+        </div>
+      </div>
+      <div class="letterhead-tag">Portail des emplois du temps</div>
+    </div>
+    <div class="gold-rule"></div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="crumbline" id="crumbline"></div>
+</div>
+
+<main class="wrap" id="main"></main>
+
+<button class="admin-fab" id="adminFab">ESPACE DIRECTION DES ÉTUDES →</button>
+
+<footer>HECM Natitingou — Portail des emplois du temps · usage interne à l'établissement<br>Conçu et développé par <strong>Domingo Matteo</strong></footer>
+
+<div id="modalRoot"></div>
+
+<script>
+/* ================= DONNÉES DE RÉFÉRENCE ================= */
+const SECTORS = {
+  tertiaire:   { label:"Filières Tertiaires",   cls:"tertiaire",   items:["EGP","FCA","MCC","AD","GRH"] },
+  industrielle:{ label:"Filières Industrielles", cls:"industrielle", items:["SIL","RIT","SSI"] }
+};
+const YEARS = ["1ère année","2ème année","3ème année"];
+const DAYS = ["Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi"];
+
+/* ================= FIREBASE INIT ================= */
+let db = null;
+let firebaseReady = false;
+try{
+  if(window.FIREBASE_CONFIG && window.FIREBASE_CONFIG.apiKey !== "REMPLACE_MOI"){
+    firebase.initializeApp(window.FIREBASE_CONFIG);
+    db = firebase.firestore();
+    firebaseReady = true;
+  }
+}catch(e){ console.error("Firebase init error:", e); }
+
+/* ================= ÉTAT DE NAVIGATION ================= */
+let state = { sector:null, filiere:null, yearIndex:null };
+let isAdmin = sessionStorage.getItem("hecm_admin") === "1";
+let unsubscribe = null;
+let currentCreneaux = [];
+
+function docId(filiere, yearIndex){ return filiere + "_" + yearIndex; }
+
+/* ================= RENDU BREADCRUMB ================= */
+function renderCrumb(){
+  const el = document.getElementById("crumbline");
+  let parts = [];
+  parts.push(`<button class="linklike" onclick="goHome()">Accueil</button>`);
+  if(state.sector){
+    parts.push(`<span class="sep">/</span>`);
+    parts.push(`<span class="step ${!state.filiere ? 'active':''}">${state.filiere ? `<button class="linklike" onclick="goSector('${state.sector}')">${SECTORS[state.sector].label}</button>` : SECTORS[state.sector].label}</span>`);
+  }
+  if(state.filiere){
+    parts.push(`<span class="sep">/</span>`);
+    parts.push(`<span class="step ${state.yearIndex===null ? 'active':''}">${state.yearIndex!==null ? `<button class="linklike" onclick="goFiliere('${state.sector}','${state.filiere}')">${state.filiere}</button>` : state.filiere}</span>`);
+  }
+  if(state.yearIndex!==null){
+    parts.push(`<span class="sep">/</span>`);
+    parts.push(`<span class="step active">${YEARS[state.yearIndex]}</span>`);
+  }
+  el.innerHTML = parts.join("");
+}
+
+/* ================= NAVIGATION ================= */
+function goHome(){ state = { sector:null, filiere:null, yearIndex:null }; stopWatch(); renderHome(); renderCrumb(); }
+function goSector(sector){ state = { sector, filiere:null, yearIndex:null }; stopWatch(); renderFilieres(); renderCrumb(); }
+function goFiliere(sector, filiere){ state = { sector, filiere, yearIndex:null }; stopWatch(); renderYears(); renderCrumb(); }
+function goYear(sector, filiere, yearIndex){ state = { sector, filiere, yearIndex }; renderSchedule(); renderCrumb(); }
+window.goHome = goHome; window.goSector = goSector; window.goFiliere = goFiliere; window.goYear = goYear;
+
+/* ================= VUES PUBLIQUES ================= */
+function renderHome(){
+  const main = document.getElementById("main");
+  main.innerHTML = `
+    <h1 class="intro-title">Consulte l'emploi du temps de ta filière</h1>
+    <p class="intro-lede">Choisis ton secteur, ta filière et ton année. L'emploi du temps affiché est mis à jour directement par la Direction des Études.</p>
+    <div class="sector-grid">
+      ${Object.entries(SECTORS).map(([key, s]) => `
+        <button class="sector-card ${s.cls}" onclick="goSector('${key}')" style="text-align:left;">
+          <span class="sector-tag">${s.label}</span>
+          <h3>${s.label}</h3>
+          <p>${s.items.length} filières disponibles</p>
+          <div class="sector-filieres">${s.items.map(f=>`<span>${f}</span>`).join("")}</div>
+        </button>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderFilieres(){
+  const main = document.getElementById("main");
+  const s = SECTORS[state.sector];
+  main.innerHTML = `
+    <div class="section-label">${s.label}</div>
+    <h2 class="board-title">Choisis ta filière</h2>
+    <div class="chip-row" style="margin-top:18px;">
+      ${s.items.map(f => `<button class="chip-btn" onclick="goFiliere('${state.sector}','${f}')">${f}</button>`).join("")}
+    </div>
+  `;
+}
+
+function renderYears(){
+  const main = document.getElementById("main");
+  main.innerHTML = `
+    <div class="section-label">${state.filiere}</div>
+    <h2 class="board-title">Choisis ton année</h2>
+    <div class="year-row" style="margin-top:18px;">
+      ${YEARS.map((y,i) => `<button class="year-btn" onclick="goYear('${state.sector}','${state.filiere}',${i})">${y}</button>`).join("")}
+    </div>
+  `;
+}
+
+function renderSchedule(){
+  const main = document.getElementById("main");
+  main.innerHTML = `
+    <div class="section-label">${state.filiere} — ${YEARS[state.yearIndex]}</div>
+    <h2 class="board-title">Emploi du temps</h2>
+    <div id="scheduleStamp"></div>
+    <div id="scheduleBoard"><p style="color:#6b6455;font-family:'IBM Plex Mono',monospace;font-size:13px;">Chargement...</p></div>
+  `;
+  watchSchedule(state.filiere, state.yearIndex);
+}
+
+function watchSchedule(filiere, yearIndex){
+  stopWatch();
+  const id = docId(filiere, yearIndex);
+
+  if(!firebaseReady){
+    document.getElementById("scheduleBoard").innerHTML = `
+      <div class="empty-state">
+        <strong>Firebase n'est pas encore configuré</strong>
+        Remplace la configuration en haut du fichier HTML (FIREBASE_CONFIG) pour activer les emplois du temps en direct.
+      </div>`;
+    return;
+  }
+
+  unsubscribe = db.collection("emplois").doc(id).onSnapshot((snap) => {
+    const data = snap.exists ? snap.data() : { creneaux: [], updatedAt: null };
+    currentCreneaux = data.creneaux || [];
+    renderBoard(currentCreneaux, data.updatedAt);
+  }, (err) => {
+    console.error(err);
+    document.getElementById("scheduleBoard").innerHTML = `<div class="empty-state"><strong>Erreur de connexion</strong>Impossible de charger l'emploi du temps pour le moment.</div>`;
+  });
+}
+function stopWatch(){ if(unsubscribe){ unsubscribe(); unsubscribe = null; } }
+
+function renderBoard(creneaux, updatedAt){
+  const stampEl = document.getElementById("scheduleStamp");
+  if(stampEl){
+    stampEl.innerHTML = updatedAt
+      ? `<div class="stamp">Mis à jour le ${formatDate(updatedAt)}</div>`
+      : `<div class="stamp">Pas encore publié</div>`;
+  }
+  const boardEl = document.getElementById("scheduleBoard");
+  if(!creneaux || creneaux.length === 0){
+    boardEl.innerHTML = `<div class="empty-state"><strong>Aucun cours publié pour l'instant</strong>La Direction des Études n'a pas encore renseigné l'emploi du temps de cette filière.</div>`;
+    return;
+  }
+  const byDay = {};
+  DAYS.forEach(d => byDay[d] = []);
+  creneaux.forEach(c => { if(byDay[c.jour]) byDay[c.jour].push(c); });
+  Object.values(byDay).forEach(list => list.sort((a,b) => a.debut.localeCompare(b.debut)));
+
+  boardEl.innerHTML = `<div class="board">
+    ${DAYS.map(day => `
+      <div class="day-card">
+        <div class="day-head">${day}</div>
+        <div class="day-body">
+          ${byDay[day].length === 0
+            ? `<div class="day-empty">Rien de programmé</div>`
+            : byDay[day].map(c => `
+              <div class="cours-block">
+                <div class="cours-heure">${c.debut} – ${c.fin}</div>
+                <div class="cours-nom">${escapeHtml(c.matiere)}</div>
+                <div class="cours-info">${escapeHtml(c.info || "")}</div>
+              </div>
+            `).join("")}
+        </div>
+      </div>
+    `).join("")}
+  </div>`;
+}
+
+function formatDate(ts){
+  try{
+    const d = ts.toDate ? ts.toDate() : new Date(ts);
+    return d.toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit', year:'numeric' }) + " à " + d.toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' });
+  }catch(e){ return ""; }
+}
+function escapeHtml(str){
+  const d = document.createElement("div"); d.textContent = str || ""; return d.innerHTML;
+}
+
+/* ================= ESPACE ADMIN ================= */
+document.getElementById("adminFab").addEventListener("click", () => {
+  if(isAdmin){ openAdminDashboard(); } else { openAdminLogin(); }
+});
+
+function openAdminLogin(){
+  const root = document.getElementById("modalRoot");
+  root.innerHTML = `
+    <div class="overlay" id="ovLogin">
+      <div class="modal">
+        <button class="modal-close" onclick="closeModal('ovLogin')">✕</button>
+        <h2>Espace Direction des Études</h2>
+        <p class="hint">Accès réservé au personnel autorisé à publier les emplois du temps.</p>
+        <div class="field">
+          <label>Mot de passe</label>
+          <input type="password" id="adminPassInput">
+        </div>
+        <div id="loginErr"></div>
+        <button class="btn btn-primary" onclick="tryAdminLogin()">Se connecter</button>
+      </div>
+    </div>
+  `;
+}
+window.tryAdminLogin = function(){
+  const val = document.getElementById("adminPassInput").value;
+  if(val === window.ADMIN_PASSWORD){
+    isAdmin = true;
+    sessionStorage.setItem("hecm_admin", "1");
+    openAdminDashboard();
+  }else{
+    document.getElementById("loginErr").innerHTML = `<div class="err-msg">Mot de passe incorrect.</div>`;
+  }
+};
+window.closeModal = function(id){ document.getElementById(id)?.remove(); };
+
+function openAdminDashboard(){
+  const root = document.getElementById("modalRoot");
+  root.innerHTML = `
+    <div class="overlay" id="ovAdmin">
+      <div class="modal">
+        <button class="modal-close" onclick="closeModal('ovAdmin')">✕</button>
+        <h2>Publier un emploi du temps</h2>
+        <p class="hint">Choisis la filière et l'année, puis ajoute les créneaux. Les changements sont visibles instantanément par les étudiants.</p>
+
+        <div class="field-row">
+          <div class="field">
+            <label>Filière</label>
+            <select id="adminFiliere">
+              ${Object.values(SECTORS).flatMap(s=>s.items).map(f=>`<option value="${f}">${f}</option>`).join("")}
+            </select>
+          </div>
+          <div class="field">
+            <label>Année</label>
+            <select id="adminYear">
+              ${YEARS.map((y,i)=>`<option value="${i}">${y}</option>`).join("")}
+            </select>
+          </div>
+        </div>
+
+        <button class="btn btn-ghost" onclick="loadAdminCreneaux()">Charger cet emploi du temps</button>
+
+        <hr style="margin:22px 0;border:none;border-top:1px solid var(--line);">
+
+        <h3 style="font-family:'Fraunces',serif;font-size:16px;margin-bottom:12px;">Ajouter un créneau</h3>
+        <div class="field-row">
+          <div class="field">
+            <label>Jour</label>
+            <select id="newJour">${DAYS.map(d=>`<option>${d}</option>`).join("")}</select>
+          </div>
+          <div class="field">
+            <label>Matière</label>
+            <input type="text" id="newMatiere" placeholder="ex: Réseaux">
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>Heure début</label>
+            <input type="time" id="newDebut">
+          </div>
+          <div class="field">
+            <label>Heure fin</label>
+            <input type="time" id="newFin">
+          </div>
+        </div>
+        <div class="field">
+          <label>Enseignant / Salle (optionnel)</label>
+          <input type="text" id="newInfo" placeholder="ex: Salle B2 — M. Ahouansou">
+        </div>
+        <button class="btn btn-primary" onclick="addCreneau()">Ajouter le créneau</button>
+
+        <div id="adminErr"></div>
+        <div class="admin-list" id="adminList"></div>
+
+        <div style="margin-top:22px;display:flex;gap:10px;flex-wrap:wrap;">
+          <button class="btn btn-primary" onclick="saveSchedule()">Enregistrer et publier</button>
+          <button class="btn btn-ghost" onclick="logoutAdmin()">Se déconnecter</button>
+        </div>
+      </div>
+    </div>
+  `;
+  window.__adminCreneaux = [];
+}
+
+let editFiliere = null, editYear = null;
+
+window.loadAdminCreneaux = function(){
+  editFiliere = document.getElementById("adminFiliere").value;
+  editYear = parseInt(document.getElementById("adminYear").value, 10);
+  const id = docId(editFiliere, editYear);
+  document.getElementById("adminErr").innerHTML = "";
+
+  if(!firebaseReady){
+    document.getElementById("adminErr").innerHTML = `<div class="err-msg">Firebase n'est pas configuré — impossible de charger ou d'enregistrer les données pour le moment.</div>`;
+    return;
+  }
+
+  db.collection("emplois").doc(id).get().then(snap => {
+    window.__adminCreneaux = snap.exists ? (snap.data().creneaux || []) : [];
+    renderAdminList();
+  });
+};
+
+window.addCreneau = function(){
+  if(editFiliere === null){
+    document.getElementById("adminErr").innerHTML = `<div class="err-msg">Charge d'abord une filière et une année.</div>`;
+    return;
+  }
+  const jour = document.getElementById("newJour").value;
+  const matiere = document.getElementById("newMatiere").value.trim();
+  const debut = document.getElementById("newDebut").value;
+  const fin = document.getElementById("newFin").value;
+  const info = document.getElementById("newInfo").value.trim();
+
+  if(!matiere || !debut || !fin){
+    document.getElementById("adminErr").innerHTML = `<div class="err-msg">Renseigne au minimum la matière, l'heure de début et l'heure de fin.</div>`;
+    return;
+  }
+  document.getElementById("adminErr").innerHTML = "";
+  window.__adminCreneaux.push({ id: Date.now().toString(), jour, matiere, debut, fin, info });
+  document.getElementById("newMatiere").value = "";
+  document.getElementById("newDebut").value = "";
+  document.getElementById("newFin").value = "";
+  document.getElementById("newInfo").value = "";
+  renderAdminList();
+};
+
+window.removeCreneau = function(id){
+  window.__adminCreneaux = window.__adminCreneaux.filter(c => c.id !== id);
+  renderAdminList();
+};
+
+function renderAdminList(){
+  const listEl = document.getElementById("adminList");
+  if(!window.__adminCreneaux || window.__adminCreneaux.length === 0){
+    listEl.innerHTML = `<p style="color:#8a8370;font-size:13px;">Aucun créneau pour l'instant.</p>`;
+    return;
+  }
+  const sorted = [...window.__adminCreneaux].sort((a,b) => DAYS.indexOf(a.jour)-DAYS.indexOf(b.jour) || a.debut.localeCompare(b.debut));
+  listEl.innerHTML = sorted.map(c => `
+    <div class="admin-row">
+      <span class="mono">${c.jour.slice(0,3)}</span>
+      <span>${escapeHtml(c.matiere)} <span style="color:#8a8370;">(${c.debut}-${c.fin})</span></span>
+      <span style="color:#8a8370;">${escapeHtml(c.info||"")}</span>
+      <button class="del" onclick="removeCreneau('${c.id}')">✕</button>
+    </div>
+  `).join("");
+}
+
+window.saveSchedule = function(){
+  if(editFiliere === null){
+    document.getElementById("adminErr").innerHTML = `<div class="err-msg">Charge d'abord une filière et une année.</div>`;
+    return;
+  }
+  if(!firebaseReady){
+    document.getElementById("adminErr").innerHTML = `<div class="err-msg">Firebase n'est pas configuré — impossible d'enregistrer.</div>`;
+    return;
+  }
+  const id = docId(editFiliere, editYear);
+  db.collection("emplois").doc(id).set({
+    creneaux: window.__adminCreneaux,
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  }).then(() => {
+    document.getElementById("adminErr").innerHTML = `<div style="color:#296B62;font-family:'IBM Plex Mono',monospace;font-size:12px;margin-top:8px;">Publié avec succès ✓</div>`;
+  }).catch(err => {
+    document.getElementById("adminErr").innerHTML = `<div class="err-msg">Erreur lors de l'enregistrement : ${err.message}</div>`;
+  });
+};
+
+window.logoutAdmin = function(){
+  isAdmin = false;
+  sessionStorage.removeItem("hecm_admin");
+  closeModal("ovAdmin");
+};
+
+/* ================= DÉMARRAGE ================= */
+renderHome();
+renderCrumb();
+</script>
+</body>
+</html>
